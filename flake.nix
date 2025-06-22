@@ -1,31 +1,45 @@
 {
-  description = "NixOS Configuration with XMonad and Extended Packages";
+  description = "💫 NixOS + Hyprland Flake (Enhanced by j3ll0)";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
-    xmonad.url = "github:xmonad/xmonad"; # Main XMonad package
-    xmonad-contrib.url = "github:xmonad/xmonad-contrib"; # XMonad contrib modules
+    hyprland.url = "github:hyprwm/Hyprland";
+    flake-utils.url = "github:numtide/flake-utils";
   };
 
-  outputs = { self, nixpkgs, xmonad, xmonad-contrib, ... }:
-  let
-    system = "x86_64-linux"; # Adjust for different architectures
-    pkgs = import nixpkgs { inherit system; };
-  in {
-    nixosConfigurations.nixos = nixpkgs.lib.nixosSystem {
-      inherit system;
-      modules = [
-        ./configuration.nix
-        ./hardware-configuration.nix
-      ];
+  outputs = { self, nixpkgs, hyprland, flake-utils, ... }:
+    flake-utils.lib.eachDefaultSystem (system:
+      let
+        pkgs = import nixpkgs {
+          inherit system;
+          overlays = [ hyprland.overlays.default ];
+        };
+      in {
+        packages.default = pkgs.hello;
+
+        devShells.default = pkgs.mkShell {
+          buildInputs = with pkgs; [ git hyprland ];
+          shellHook = ''
+            echo "🦇 Hyprland devShell active. Hack the planet."
+          '';
+        };
+
+        formatter = pkgs.nixpkgs-fmt;
+      }
+    ) // {
+      nixosConfigurations = {
+        nixos = nixpkgs.lib.nixosSystem {
+          system = "x86_64-linux";
+          modules = [
+            ./configuration.nix
+            hyprland.nixosModules.default
+          ];
+        };
+      };
+
+      nixosModules = {
+        hyprland = hyprland.nixosModules.default;
+      };
     };
-
-    # Add an overlay to include XMonad packages
-    nixpkgs.overlays = [
-      (final: prev: {
-        xmonad = xmonad.packages.${system}.xmonad;
-        xmonad-contrib = xmonad-contrib.packages.${system}.xmonad-contrib;
-      })
-    ];
-  };
 }
+

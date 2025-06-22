@@ -1,122 +1,128 @@
 #!/usr/bin/env bash
 
-# Flake path (corrected to /etc/nixos)
+# NixOS Maintenance & Update Menu 
 flake_path="/etc/nixos"
-# Get the current script path
 script_path="$0"
 
-echo "Select an option:"
-echo "1) 🛠️ Recompile XMonad"
-echo "2) 🔄 Restart XMonad"
-echo "3) 🚀 Standard NixOS Flakes Rebuild"
-echo "4) 🧪 Test NixOS Flakes Rebuild"
-echo "5) ℹ️ List NixOS Generations"
-echo "6) 🗑️ Delete a Specific NixOS Generation"
-echo "7) 🗑️ Delete All Old Generations"
-echo "8) 🧹 Clean Up Boot Menu"
-echo "9) ⬆️ Update Software Channel"
-echo "10) 🧹 System Cleanup & Optimization"
-echo "11) 🔍 Monitor Recent Updates"
-echo "12) 🚀 Manual Flake Update and Rebuild"
-echo "13) 📝 Edit This Menu"
-echo "14) 🚪 Exit"
-
-read -p "Enter your choice: " choice
+clear
+echo "🩺 NixOS Maintenance Menu"
+echo "Select an action:"
+echo
+echo " 1) 🧹  System Cleanup & Optimization"
+echo " 2) 🚀  Standard NixOS Flakes Rebuild"
+echo " 3) 🧪  Test NixOS Flakes Rebuild"
+echo " 4) ℹ️  List NixOS Generations"
+echo " 5) 🗑️  Delete a Specific Generation"
+echo " 6) 🗑️  Delete All Old Generations"
+echo " 7) 🧹  Clean Up Boot Menu"
+echo " 8) ⬆️  Update Software Channel & Switch"
+echo " 9) 🔄  Update Flakes"
+echo "10) 📦  Update Flatpak Apps"
+echo "11) 📅  View Auto-Upgrade Timer Status"
+echo "12) 🩺  Check Auto-Upgrade Service Health"
+echo "13) 📝  Edit This Menu Script"
+echo "14) 🚪  Exit"
+echo
+read -rp "Enter your choice: " choice
 
 case $choice in
   1)
-    echo "🛠️ Recompiling XMonad..."
-    xmonad --recompile
+    echo "🧹 Running cleanup..."
+    sudo nix-collect-garbage
+    sudo nix store optimise
+    sudo nix-collect-garbage -d
+    nix profile wipe-history --older-than 100d
+    echo "✅ Cleanup complete!"
     ;;
+
   2)
-    echo "🔄 Restarting XMonad..."
-    xmonad --restart
-    ;;
-  3)
-    echo "🚀 Running standard NixOS flakes rebuild..."
+    echo "🚀 Rebuilding NixOS with flakes..."
     cd "$flake_path" || exit
     sudo nixos-rebuild switch --flake .
     ;;
-  4)
-    echo "🧪 Testing NixOS flakes rebuild (dry-run)..."
+
+  3)
+    echo "🧪 Performing test rebuild..."
     cd "$flake_path" || exit
     if sudo nixos-rebuild build --flake .; then
-      echo "✅ Test build completed successfully."
-      read -p "Do you want to proceed with the full NixOS flakes rebuild? (Y/n): " proceed
-      proceed=${proceed:-Y}
-      if [[ "$proceed" =~ ^[Yy]$ ]]; then
+      echo "✅ Build passed."
+      read -rp "Proceed with switch? (Y/n): " proceed
+      if [[ "${proceed^^}" == "Y" || -z "$proceed" ]]; then
         sudo nixos-rebuild switch --flake .
       else
-        echo "⏩ Skipping full rebuild."
+        echo "⏩ Skipping switch."
       fi
     else
-      echo "❌ Test build encountered errors. Please check the output."
+      echo "❌ Build failed. Please check errors."
     fi
     ;;
-  5)
-    echo "ℹ️ Listing NixOS Generations..."
+
+  4)
+    echo "ℹ️ Listing generations..."
     sudo nix-env -p /nix/var/nix/profiles/system --list-generations
     ;;
+
+  5)
+    read -rp "Enter generation to delete: " gen
+    echo "🗑️ Deleting generation $gen..."
+    sudo nix-env -p /nix/var/nix/profiles/system --delete-generations "$gen"
+    cd "$flake_path" && sudo nixos-rebuild boot
+    ;;
+
   6)
-    read -p "Enter the generation number to delete: " generation_to_delete
-    echo "🗑️ Deleting NixOS Generation $generation_to_delete..."
-    sudo nix-env -p /nix/var/nix/profiles/system --delete-generations "$generation_to_delete"
-    echo "🧹 Cleaning up the Boot Menu..."
-    cd "$flake_path" || exit
-    sudo nixos-rebuild boot
-    ;;
-  7)
-    echo "🗑️ Deleting all old NixOS Generations..."
+    echo "🗑️ Deleting all old generations..."
     sudo nix-env -p /nix/var/nix/profiles/system --delete-generations old
-    echo "🧹 Cleaning up the Boot Menu..."
-    cd "$flake_path" || exit
-    sudo nixos-rebuild boot
+    cd "$flake_path" && sudo nixos-rebuild boot
     ;;
+
+  7)
+    echo "🧹 Rebuilding boot menu..."
+    cd "$flake_path" && sudo nixos-rebuild boot
+    ;;
+
   8)
-    echo "🧹 Cleaning up the Boot Menu..."
-    cd "$flake_path" || exit
-    sudo nixos-rebuild boot
-    ;;
-  9)
-    echo "⬆️ Updating Software Channel..."
+    echo "⬆️ Updating channel and switching system..."
     nix-channel --update nixos
-    cd "$flake_path" || exit
-    sudo nixos-rebuild switch --upgrade
+    cd "$flake_path" && sudo nixos-rebuild switch --upgrade
     ;;
+
+  9)
+    echo "🔄 Updating flake..."
+    cd "$flake_path" && sudo nix flake update
+    echo "✅ Flake update complete."
+    ;;
+
   10)
-    echo "🧹 Running System Cleanup & Optimization..."
-    echo "🗑️ Cleaning up the Store..."
-    sudo nix-collect-garbage
-    echo "⚙️ Optimizing Store..."
-    sudo nix store optimise
-    echo "💽 Reclaiming Disk Space..."
-    sudo nix-collect-garbage -d
-    echo "🧹 Clearing Cache..."
-    nix profile wipe-history --older-than 100d
-    echo "✅ System cleanup completed!"
+    echo "📦 Updating Flatpak apps..."
+    flatpak update
+    echo "✅ Flatpaks updated!"
     ;;
+
   11)
-    echo "🔍 Monitoring Recent Updates..."
-    journalctl -u system-autoUpgrade.service --no-pager | tail -n 50
+    echo "📅 Auto-upgrade timer status:"
+    systemctl status nixos-upgrade.timer
     ;;
+
   12)
-    echo "🚀 Running manual Flake update and rebuild..."
-    cd "$flake_path" || exit
-    sudo nix flake update
-    sudo nixos-rebuild switch --flake .
+    echo "🩺 Auto-upgrade service health:"
+    systemctl status nixos-upgrade.service
     ;;
+
   13)
-    echo "📝 Editing this menu..."
+    echo "📝 Opening this script..."
     kitty sudo nvim "$script_path"
     ;;
+
   14)
-    echo "🚪 Exiting..."
+    echo "🚪 Goodbye!"
     exit 0
     ;;
+
   *)
-    echo "⚠️ Invalid selection. Please choose a valid option."
+    echo "⚠️ Invalid selection."
     ;;
 esac
 
-echo "Press Enter to exit."
-read -r
+echo
+read -rp "Press Enter to exit."
+
